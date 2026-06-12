@@ -4,10 +4,6 @@ import net.minecraftforge.common.capabilities.AutoRegisterCapability;
 
 @AutoRegisterCapability
 public interface IMedicalData {
-    int getBleedingLevel();
-
-    void setBleedingLevel(int level);
-
     int getPain();
 
     void setPain(int pain);
@@ -64,20 +60,98 @@ public interface IMedicalData {
 
     void setInjurySeverity(BodyPart bodyPart, int severity);
 
+    int getBleedingLevel(BodyPart bodyPart);
+
+    void setBleedingLevel(BodyPart bodyPart, int level);
+
     boolean hasFracture(BodyPart bodyPart);
 
     void setFracture(BodyPart bodyPart, boolean fractured);
 
+    int getExaminationMask();
+
+    void setExaminationMask(int mask);
+
+    int getBodyExaminationMask();
+
+    void setBodyExaminationMask(int mask);
+
+    default int getBleedingLevel() {
+        int maximum = 0;
+        for (BodyPart bodyPart : BodyPart.values()) {
+            maximum = Math.max(maximum, getBleedingLevel(bodyPart));
+        }
+        return maximum;
+    }
+
+    default int getTotalBleedingLevel() {
+        int total = 0;
+        for (BodyPart bodyPart : BodyPart.values()) {
+            total += getBleedingLevel(bodyPart);
+        }
+        return total;
+    }
+
+    default void setBleedingLevel(int level) {
+        setBleedingLevel(BodyPart.TORSO, level);
+    }
+
     default boolean isBleeding() {
-        return getBleedingLevel() > 0;
+        return getTotalBleedingLevel() > 0;
+    }
+
+    default void reduceBleeding(BodyPart bodyPart, int amount) {
+        setBleedingLevel(bodyPart, getBleedingLevel(bodyPart) - Math.max(0, amount));
     }
 
     default void reduceBleeding(int amount) {
-        setBleedingLevel(getBleedingLevel() - Math.max(0, amount));
+        BodyPart worstPart = null;
+        int worstLevel = 0;
+
+        for (BodyPart bodyPart : BodyPart.values()) {
+            int level = getBleedingLevel(bodyPart);
+            if (level > worstLevel) {
+                worstLevel = level;
+                worstPart = bodyPart;
+            }
+        }
+
+        if (worstPart != null) {
+            reduceBleeding(worstPart, amount);
+        }
+    }
+
+    default void stopBleeding(BodyPart bodyPart) {
+        setBleedingLevel(bodyPart, 0);
     }
 
     default void stopBleeding() {
-        setBleedingLevel(0);
+        for (BodyPart bodyPart : BodyPart.values()) {
+            stopBleeding(bodyPart);
+        }
+    }
+
+    default boolean isExamined(ExaminationAction action) {
+        return !action.isBodySpecific() && (getExaminationMask() & action.getMask()) != 0;
+    }
+
+    default void markExamined(ExaminationAction action) {
+        if (!action.isBodySpecific()) {
+            setExaminationMask(getExaminationMask() | action.getMask());
+        }
+    }
+
+    default boolean isBodyPartExamined(BodyPart bodyPart) {
+        return (getBodyExaminationMask() & (1 << bodyPart.ordinal())) != 0;
+    }
+
+    default void markBodyPartExamined(BodyPart bodyPart) {
+        setBodyExaminationMask(getBodyExaminationMask() | (1 << bodyPart.ordinal()));
+    }
+
+    default void clearExaminations() {
+        setExaminationMask(0);
+        setBodyExaminationMask(0);
     }
 
     void copyFrom(IMedicalData source);
