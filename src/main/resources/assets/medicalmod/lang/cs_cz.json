@@ -1,5 +1,12 @@
 {
   "item.medicalmod.bandage": "Obvaz",
-  "message.medicalmod.bandage_used": "Obvaz byl použit.",
-  "message.medicalmod.bandage_not_needed": "Obvaz teď nepotřebuješ."
+  "message.medicalmod.bandage_not_needed": "Pacient nekrvácí.",
+  "message.medicalmod.bandage_reduced": "Krvácení bylo omezeno. Zbývající stupeň: %s.",
+  "message.medicalmod.bandage_stopped": "Krvácení bylo zastaveno.",
+  "message.medicalmod.bleeding_damage": "Krvácíš. Stupeň krvácení: %s.",
+  "message.medicalmod.data_missing": "Zdravotní data hráče nejsou dostupná.",
+  "command.medicalmod.status": "Stupeň krvácení: %s.",
+  "command.medicalmod.bleeding_set": "Krvácení bylo nastaveno na stupeň %s.",
+  "command.medicalmod.cleared": "Zdravotní stav byl vyčištěn.",
+  "command.medicalmod.data_missing": "Zdravotní data hráče nejsou dostupná."
 }
