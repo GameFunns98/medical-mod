@@ -24,4 +24,27 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew build --stacktrace
+        id: gradle_build
+        shell: bash
+        run: |
+          set +e
+          ./gradlew build --stacktrace --console=plain > build.log 2>&1
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          grep -n -E "error:|FAILURE:|What went wrong:|Execution failed for task|Could not compile" build.log > diagnostics.txt || true
+          tail -n 120 build.log >> diagnostics.txt
+          exit 0
+
+      - name: Upload build diagnostics
+        if: steps.gradle_build.outputs.exit_code != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: |
+            diagnostics.txt
+            build.log
+          retention-days: 3
+
+      - name: Fail when Gradle build failed
+        if: steps.gradle_build.outputs.exit_code != '0'
+        run: exit 1
