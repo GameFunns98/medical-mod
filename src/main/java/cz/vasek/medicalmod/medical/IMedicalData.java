@@ -93,6 +93,10 @@ public interface IMedicalData {
     }
 
     default void setBleedingLevel(int level) {
+        if (level <= 0) {
+            stopBleeding();
+            return;
+        }
         setBleedingLevel(BodyPart.TORSO, level);
     }
 
