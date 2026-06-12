@@ -18,7 +18,6 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraftforge.network.NetworkHooks;
 
 import java.util.Optional;
 
@@ -72,8 +71,7 @@ public final class MedicalMenu extends AbstractContainerMenu {
     }
 
     public static void open(ServerPlayer examiner, ServerPlayer target) {
-        NetworkHooks.openScreen(
-                examiner,
+        examiner.openMenu(
                 new SimpleMenuProvider(
                         (containerId, inventory, player) -> new MedicalMenu(containerId, inventory, target),
                         Component.translatable("menu.medicalmod.patient", target.getDisplayName())
@@ -126,7 +124,7 @@ public final class MedicalMenu extends AbstractContainerMenu {
 
             @Override
             public void set(int index, int value) {
-                // Medical state is modified only by validated server-side treatment actions.
+                // State changes are accepted only through validated server-side actions.
             }
 
             @Override
@@ -168,8 +166,13 @@ public final class MedicalMenu extends AbstractContainerMenu {
                     Component.translatable(action.get().getTranslationKey()),
                     targetPlayer.getDisplayName()
             ));
+        } else {
+            examiner.sendSystemMessage(Component.translatable(
+                    "message.medicalmod.treatment_failed",
+                    Component.translatable(action.get().getTranslationKey())
+            ));
         }
-        return success;
+        return true;
     }
 
     private boolean applyTreatment(Player examiner, IMedicalData data, TreatmentAction action) {
