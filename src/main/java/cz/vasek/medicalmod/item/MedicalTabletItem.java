@@ -34,11 +34,13 @@ public final class MedicalTabletItem extends Item {
             LivingEntity target,
             InteractionHand hand
     ) {
-        if (!(target instanceof ServerPlayer targetPlayer)) {
+        if (!(target instanceof Player)) {
             return InteractionResult.PASS;
         }
 
-        if (!player.level().isClientSide && player instanceof ServerPlayer examiner) {
+        if (!player.level().isClientSide
+                && player instanceof ServerPlayer examiner
+                && target instanceof ServerPlayer targetPlayer) {
             MedicalMenu.open(examiner, targetPlayer);
         }
 
