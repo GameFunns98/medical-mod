@@ -55,7 +55,7 @@ public final class ClinicalWorkflowEvents {
         });
     }
 
-    @SubscribeEvent(priority = EventPriority.LOWEST)
+    @SubscribeEvent(priority = EventPriority.LOWEST, receiveCanceled = true)
     public static void correctBodySpecificDamage(LivingDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)
                 || player.level().isClientSide) {
@@ -63,12 +63,17 @@ public final class ClinicalWorkflowEvents {
         }
 
         DamageSnapshot snapshot = DAMAGE_SNAPSHOTS.remove(player.getUUID());
-        if (snapshot == null || event.getAmount() < 1.0F) {
+        if (snapshot == null || event.isCanceled() || event.getAmount() < 1.0F) {
             return;
         }
 
         player.getCapability(MedicalDataProvider.CAPABILITY).ifPresent(data -> {
             BodyPart injuredPart = findChangedBodyPart(data, snapshot);
+
+            if (injuredPart == null && event.getAmount() < 2.0F) {
+                return;
+            }
+
             if (injuredPart == null) {
                 injuredPart = fallbackBodyPart(player, event);
             }
