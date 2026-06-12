@@ -6,7 +6,8 @@ import net.minecraft.util.Mth;
 import java.util.Arrays;
 
 public final class MedicalData implements IMedicalData {
-    private static final String BLEEDING_LEVEL_KEY = "BleedingLevel";
+    private static final String LEGACY_BLEEDING_LEVEL_KEY = "BleedingLevel";
+    private static final String BLEEDING_LEVELS_KEY = "BleedingLevels";
     private static final String PAIN_KEY = "Pain";
     private static final String CONSCIOUSNESS_KEY = "Consciousness";
     private static final String PULSE_KEY = "Pulse";
@@ -22,8 +23,9 @@ public final class MedicalData implements IMedicalData {
     private static final String IV_ACCESS_KEY = "IvAccess";
     private static final String INJURIES_KEY = "Injuries";
     private static final String FRACTURE_MASK_KEY = "FractureMask";
+    private static final String EXAMINATION_MASK_KEY = "ExaminationMask";
+    private static final String BODY_EXAMINATION_MASK_KEY = "BodyExaminationMask";
 
-    private int bleedingLevel;
     private int pain;
     private int consciousnessLevel;
     private int pulse = 80;
@@ -38,17 +40,10 @@ public final class MedicalData implements IMedicalData {
     private int cardiacRhythm;
     private boolean ivAccess;
     private final int[] injuries = new int[BodyPart.values().length];
+    private final int[] bleedingLevels = new int[BodyPart.values().length];
     private int fractureMask;
-
-    @Override
-    public int getBleedingLevel() {
-        return bleedingLevel;
-    }
-
-    @Override
-    public void setBleedingLevel(int level) {
-        bleedingLevel = Mth.clamp(level, 0, 3);
-    }
+    private int examinationMask;
+    private int bodyExaminationMask;
 
     @Override
     public int getPain() {
@@ -191,6 +186,16 @@ public final class MedicalData implements IMedicalData {
     }
 
     @Override
+    public int getBleedingLevel(BodyPart bodyPart) {
+        return bleedingLevels[bodyPart.ordinal()];
+    }
+
+    @Override
+    public void setBleedingLevel(BodyPart bodyPart, int level) {
+        bleedingLevels[bodyPart.ordinal()] = Mth.clamp(level, 0, 3);
+    }
+
+    @Override
     public boolean hasFracture(BodyPart bodyPart) {
         return (fractureMask & (1 << bodyPart.ordinal())) != 0;
     }
@@ -202,8 +207,28 @@ public final class MedicalData implements IMedicalData {
     }
 
     @Override
+    public int getExaminationMask() {
+        return examinationMask;
+    }
+
+    @Override
+    public void setExaminationMask(int mask) {
+        examinationMask = Math.max(0, mask);
+    }
+
+    @Override
+    public int getBodyExaminationMask() {
+        return bodyExaminationMask;
+    }
+
+    @Override
+    public void setBodyExaminationMask(int mask) {
+        int validMask = (1 << BodyPart.values().length) - 1;
+        bodyExaminationMask = mask & validMask;
+    }
+
+    @Override
     public void copyFrom(IMedicalData source) {
-        setBleedingLevel(source.getBleedingLevel());
         setPain(source.getPain());
         setConsciousnessLevel(source.getConsciousnessLevel());
         setPulse(source.getPulse());
@@ -217,16 +242,18 @@ public final class MedicalData implements IMedicalData {
         setPneumothorax(source.hasPneumothorax());
         setCardiacRhythm(source.getCardiacRhythm());
         setIvAccess(source.hasIvAccess());
+        setExaminationMask(source.getExaminationMask());
+        setBodyExaminationMask(source.getBodyExaminationMask());
 
         for (BodyPart bodyPart : BodyPart.values()) {
             setInjurySeverity(bodyPart, source.getInjurySeverity(bodyPart));
+            setBleedingLevel(bodyPart, source.getBleedingLevel(bodyPart));
             setFracture(bodyPart, source.hasFracture(bodyPart));
         }
     }
 
     public CompoundTag serializeNBT() {
         CompoundTag tag = new CompoundTag();
-        tag.putInt(BLEEDING_LEVEL_KEY, bleedingLevel);
         tag.putInt(PAIN_KEY, pain);
         tag.putInt(CONSCIOUSNESS_KEY, consciousnessLevel);
         tag.putInt(PULSE_KEY, pulse);
@@ -241,12 +268,14 @@ public final class MedicalData implements IMedicalData {
         tag.putInt(CARDIAC_RHYTHM_KEY, cardiacRhythm);
         tag.putBoolean(IV_ACCESS_KEY, ivAccess);
         tag.putIntArray(INJURIES_KEY, injuries);
+        tag.putIntArray(BLEEDING_LEVELS_KEY, bleedingLevels);
         tag.putInt(FRACTURE_MASK_KEY, fractureMask);
+        tag.putInt(EXAMINATION_MASK_KEY, examinationMask);
+        tag.putInt(BODY_EXAMINATION_MASK_KEY, bodyExaminationMask);
         return tag;
     }
 
     public void deserializeNBT(CompoundTag tag) {
-        if (tag.contains(BLEEDING_LEVEL_KEY)) setBleedingLevel(tag.getInt(BLEEDING_LEVEL_KEY));
         if (tag.contains(PAIN_KEY)) setPain(tag.getInt(PAIN_KEY));
         if (tag.contains(CONSCIOUSNESS_KEY)) setConsciousnessLevel(tag.getInt(CONSCIOUSNESS_KEY));
         if (tag.contains(PULSE_KEY)) setPulse(tag.getInt(PULSE_KEY));
@@ -260,15 +289,39 @@ public final class MedicalData implements IMedicalData {
         if (tag.contains(PNEUMOTHORAX_KEY)) setPneumothorax(tag.getBoolean(PNEUMOTHORAX_KEY));
         if (tag.contains(CARDIAC_RHYTHM_KEY)) setCardiacRhythm(tag.getInt(CARDIAC_RHYTHM_KEY));
         if (tag.contains(IV_ACCESS_KEY)) setIvAccess(tag.getBoolean(IV_ACCESS_KEY));
+        if (tag.contains(EXAMINATION_MASK_KEY)) setExaminationMask(tag.getInt(EXAMINATION_MASK_KEY));
+        if (tag.contains(BODY_EXAMINATION_MASK_KEY)) {
+            setBodyExaminationMask(tag.getInt(BODY_EXAMINATION_MASK_KEY));
+        }
 
-        if (tag.contains(INJURIES_KEY)) {
-            int[] loadedInjuries = tag.getIntArray(INJURIES_KEY);
-            Arrays.fill(injuries, 0);
-            System.arraycopy(loadedInjuries, 0, injuries, 0, Math.min(loadedInjuries.length, injuries.length));
+        loadArray(tag, INJURIES_KEY, injuries, 0, 3);
+        loadArray(tag, BLEEDING_LEVELS_KEY, bleedingLevels, 0, 3);
+
+        if (!tag.contains(BLEEDING_LEVELS_KEY) && tag.contains(LEGACY_BLEEDING_LEVEL_KEY)) {
+            setBleedingLevel(BodyPart.TORSO, tag.getInt(LEGACY_BLEEDING_LEVEL_KEY));
         }
 
         if (tag.contains(FRACTURE_MASK_KEY)) {
             fractureMask = tag.getInt(FRACTURE_MASK_KEY);
+        }
+    }
+
+    private static void loadArray(
+            CompoundTag tag,
+            String key,
+            int[] target,
+            int minimum,
+            int maximum
+    ) {
+        Arrays.fill(target, 0);
+        if (!tag.contains(key)) {
+            return;
+        }
+
+        int[] loaded = tag.getIntArray(key);
+        int length = Math.min(loaded.length, target.length);
+        for (int index = 0; index < length; index++) {
+            target[index] = Mth.clamp(loaded[index], minimum, maximum);
         }
     }
 }
