@@ -1,5 +1,12 @@
 {
   "item.medicalmod.bandage": "Bandage",
-  "message.medicalmod.bandage_used": "The bandage was used.",
-  "message.medicalmod.bandage_not_needed": "You do not need a bandage right now."
+  "message.medicalmod.bandage_not_needed": "The patient is not bleeding.",
+  "message.medicalmod.bandage_reduced": "Bleeding was reduced. Remaining level: %s.",
+  "message.medicalmod.bandage_stopped": "Bleeding was stopped.",
+  "message.medicalmod.bleeding_damage": "You are bleeding. Bleeding level: %s.",
+  "message.medicalmod.data_missing": "Player medical data is unavailable.",
+  "command.medicalmod.status": "Bleeding level: %s.",
+  "command.medicalmod.bleeding_set": "Bleeding was set to level %s.",
+  "command.medicalmod.cleared": "Medical state was cleared.",
+  "command.medicalmod.data_missing": "Player medical data is unavailable."
 }
