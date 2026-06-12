@@ -1,0 +1,5 @@
+{
+  "item.medicalmod.bandage": "Obvaz",
+  "message.medicalmod.bandage_used": "Obvaz byl použit.",
+  "message.medicalmod.bandage_not_needed": "Obvaz teď nepotřebuješ."
+}
