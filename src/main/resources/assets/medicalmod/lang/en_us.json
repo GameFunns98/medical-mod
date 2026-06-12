@@ -81,6 +81,7 @@
   "message.medicalmod.bleeding_damage": "You are bleeding. Bleeding level: %s.",
   "message.medicalmod.data_missing": "Player medical data is unavailable.",
   "message.medicalmod.treatment_success": "%s was performed on patient %s.",
+  "message.medicalmod.treatment_failed": "%s cannot be performed. The required supply is missing or the treatment is not appropriate for the current condition.",
   "command.medicalmod.status": "Bleeding: %s, pulse: %s, pressure: %s/%s, SpO₂: %s %%.",
   "command.medicalmod.bleeding_set": "Bleeding was set to level %s.",
   "command.medicalmod.cleared": "Medical state was cleared.",
