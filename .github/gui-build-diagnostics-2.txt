@@ -1,0 +1,1 @@
+Second temporary diagnostics trigger for the current Forge GUI build.
