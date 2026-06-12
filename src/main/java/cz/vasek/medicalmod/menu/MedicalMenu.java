@@ -18,6 +18,7 @@ import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.inventory.SimpleContainerData;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.common.extensions.IForgeServerPlayer;
 
 import java.util.Optional;
 
@@ -71,7 +72,7 @@ public final class MedicalMenu extends AbstractContainerMenu {
     }
 
     public static void open(ServerPlayer examiner, ServerPlayer target) {
-        examiner.openMenu(
+        ((IForgeServerPlayer) examiner).openMenu(
                 new SimpleMenuProvider(
                         (containerId, inventory, player) -> new MedicalMenu(containerId, inventory, target),
                         Component.translatable("menu.medicalmod.patient", target.getDisplayName())
