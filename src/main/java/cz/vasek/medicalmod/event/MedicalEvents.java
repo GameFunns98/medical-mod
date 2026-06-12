@@ -24,12 +24,16 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 @Mod.EventBusSubscriber(modid = MedicalMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class MedicalEvents {
     private static final ResourceLocation MEDICAL_DATA_ID =
             new ResourceLocation(MedicalMod.MOD_ID, "medical_data");
+    private static final Set<UUID> INTERNAL_DAMAGE = new HashSet<>();
 
     private MedicalEvents() {
     }
@@ -65,7 +69,8 @@ public final class MedicalEvents {
         if (!(event.getEntity() instanceof Player player)
                 || player.level().isClientSide
                 || player.isCreative()
-                || player.isSpectator()) {
+                || player.isSpectator()
+                || INTERNAL_DAMAGE.contains(player.getUUID())) {
             return;
         }
 
@@ -127,7 +132,13 @@ public final class MedicalEvents {
             int interval = getDamageInterval(bleedingLevel);
 
             if (interval > 0 && player.tickCount % interval == 0) {
-                player.hurt(player.damageSources().generic(), 1.0F);
+                INTERNAL_DAMAGE.add(player.getUUID());
+                try {
+                    player.hurt(player.damageSources().generic(), 1.0F);
+                } finally {
+                    INTERNAL_DAMAGE.remove(player.getUUID());
+                }
+
                 player.displayClientMessage(
                         Component.translatable("message.medicalmod.bleeding_damage", bleedingLevel),
                         true
