@@ -81,6 +81,7 @@
   "message.medicalmod.bleeding_damage": "Krvácíš. Stupeň krvácení: %s.",
   "message.medicalmod.data_missing": "Zdravotní data hráče nejsou dostupná.",
   "message.medicalmod.treatment_success": "%s bylo provedeno u pacienta %s.",
+  "message.medicalmod.treatment_failed": "%s nelze provést. Chybí pomůcka nebo výkon není pro aktuální stav vhodný.",
   "command.medicalmod.status": "Krvácení: %s, tep: %s, tlak: %s/%s, SpO₂: %s %%.",
   "command.medicalmod.bleeding_set": "Krvácení bylo nastaveno na stupeň %s.",
   "command.medicalmod.cleared": "Zdravotní stav byl vyčištěn.",
