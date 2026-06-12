@@ -1,6 +1,7 @@
 package cz.vasek.medicalmod.menu;
 
 import cz.vasek.medicalmod.medical.BodyPart;
+import cz.vasek.medicalmod.medical.ExaminationAction;
 import cz.vasek.medicalmod.medical.IMedicalData;
 import cz.vasek.medicalmod.medical.MedicalDataProvider;
 import cz.vasek.medicalmod.medical.TreatmentAction;
@@ -23,26 +24,33 @@ import net.minecraftforge.network.NetworkHooks;
 import java.util.Optional;
 
 public final class MedicalMenu extends AbstractContainerMenu {
-    private static final int BLEEDING_INDEX = 0;
-    private static final int PAIN_INDEX = 1;
-    private static final int CONSCIOUSNESS_INDEX = 2;
-    private static final int PULSE_INDEX = 3;
-    private static final int SYSTOLIC_INDEX = 4;
-    private static final int DIASTOLIC_INDEX = 5;
-    private static final int SPO2_INDEX = 6;
-    private static final int RESPIRATORY_RATE_INDEX = 7;
-    private static final int TEMPERATURE_INDEX = 8;
-    private static final int BLOOD_VOLUME_INDEX = 9;
-    private static final int AIRWAY_INDEX = 10;
-    private static final int PNEUMOTHORAX_INDEX = 11;
-    private static final int RHYTHM_INDEX = 12;
-    private static final int IV_ACCESS_INDEX = 13;
-    private static final int FRACTURE_MASK_INDEX = 14;
-    private static final int INJURY_START_INDEX = 15;
-    private static final int DATA_COUNT = INJURY_START_INDEX + BodyPart.values().length;
+    public static final int BODY_PART_BUTTON_BASE = 100;
+
+    private static final int PAIN_INDEX = 0;
+    private static final int CONSCIOUSNESS_INDEX = 1;
+    private static final int PULSE_INDEX = 2;
+    private static final int SYSTOLIC_INDEX = 3;
+    private static final int DIASTOLIC_INDEX = 4;
+    private static final int SPO2_INDEX = 5;
+    private static final int RESPIRATORY_RATE_INDEX = 6;
+    private static final int TEMPERATURE_INDEX = 7;
+    private static final int BLOOD_VOLUME_INDEX = 8;
+    private static final int AIRWAY_INDEX = 9;
+    private static final int PNEUMOTHORAX_INDEX = 10;
+    private static final int RHYTHM_INDEX = 11;
+    private static final int IV_ACCESS_INDEX = 12;
+    private static final int FRACTURE_MASK_INDEX = 13;
+    private static final int EXAMINATION_MASK_INDEX = 14;
+    private static final int BODY_EXAMINATION_MASK_INDEX = 15;
+    private static final int INJURY_START_INDEX = 16;
+    private static final int BLEEDING_START_INDEX =
+            INJURY_START_INDEX + BodyPart.values().length;
+    private static final int DATA_COUNT =
+            BLEEDING_START_INDEX + BodyPart.values().length;
 
     private final Player targetPlayer;
     private final ContainerData medicalData;
+    private BodyPart selectedBodyPart = BodyPart.TORSO;
 
     public MedicalMenu(int containerId, Inventory inventory, FriendlyByteBuf buffer) {
         this(
@@ -75,8 +83,12 @@ public final class MedicalMenu extends AbstractContainerMenu {
         NetworkHooks.openScreen(
                 examiner,
                 new SimpleMenuProvider(
-                        (containerId, inventory, player) -> new MedicalMenu(containerId, inventory, target),
-                        Component.translatable("menu.medicalmod.patient", target.getDisplayName())
+                        (containerId, inventory, player) ->
+                                new MedicalMenu(containerId, inventory, target),
+                        Component.translatable(
+                                "menu.medicalmod.patient",
+                                target.getDisplayName()
+                        )
                 ),
                 buffer -> buffer.writeVarInt(target.getId())
         );
@@ -100,12 +112,20 @@ public final class MedicalMenu extends AbstractContainerMenu {
                 }
 
                 IMedicalData data = optional.get();
-                if (index >= INJURY_START_INDEX && index < DATA_COUNT) {
-                    return data.getInjurySeverity(BodyPart.values()[index - INJURY_START_INDEX]);
+
+                if (index >= INJURY_START_INDEX && index < BLEEDING_START_INDEX) {
+                    BodyPart bodyPart =
+                            BodyPart.values()[index - INJURY_START_INDEX];
+                    return data.getInjurySeverity(bodyPart);
+                }
+
+                if (index >= BLEEDING_START_INDEX && index < DATA_COUNT) {
+                    BodyPart bodyPart =
+                            BodyPart.values()[index - BLEEDING_START_INDEX];
+                    return data.getBleedingLevel(bodyPart);
                 }
 
                 return switch (index) {
-                    case BLEEDING_INDEX -> data.getBleedingLevel();
                     case PAIN_INDEX -> data.getPain();
                     case CONSCIOUSNESS_INDEX -> data.getConsciousnessLevel();
                     case PULSE_INDEX -> data.getPulse();
@@ -120,13 +140,16 @@ public final class MedicalMenu extends AbstractContainerMenu {
                     case RHYTHM_INDEX -> data.getCardiacRhythm();
                     case IV_ACCESS_INDEX -> data.hasIvAccess() ? 1 : 0;
                     case FRACTURE_MASK_INDEX -> getFractureMask(data);
+                    case EXAMINATION_MASK_INDEX -> data.getExaminationMask();
+                    case BODY_EXAMINATION_MASK_INDEX ->
+                            data.getBodyExaminationMask();
                     default -> 0;
                 };
             }
 
             @Override
             public void set(int index, int value) {
-                // State changes are accepted only through validated server-side actions.
+                // Medical values are modified only by validated server actions.
             }
 
             @Override
@@ -148,60 +171,113 @@ public final class MedicalMenu extends AbstractContainerMenu {
 
     @Override
     public boolean clickMenuButton(Player examiner, int buttonId) {
-        if (examiner.level().isClientSide || examiner.distanceToSqr(targetPlayer) > 64.0D) {
+        if (examiner.level().isClientSide
+                || examiner.distanceToSqr(targetPlayer) > 64.0D) {
             return false;
         }
 
-        Optional<TreatmentAction> action = TreatmentAction.byId(buttonId);
+        if (buttonId >= BODY_PART_BUTTON_BASE
+                && buttonId < BODY_PART_BUTTON_BASE + BodyPart.values().length) {
+            selectedBodyPart =
+                    BodyPart.values()[buttonId - BODY_PART_BUTTON_BASE];
+            return true;
+        }
+
         Optional<IMedicalData> targetData = targetPlayer
                 .getCapability(MedicalDataProvider.CAPABILITY)
                 .resolve();
 
-        if (action.isEmpty() || targetData.isEmpty()) {
+        if (targetData.isEmpty()) {
             return false;
         }
 
-        boolean success = applyTreatment(examiner, targetData.get(), action.get());
+        Optional<ExaminationAction> examination =
+                ExaminationAction.byId(buttonId);
+        if (examination.isPresent()) {
+            applyExamination(examiner, targetData.get(), examination.get());
+            return true;
+        }
+
+        Optional<TreatmentAction> treatment = TreatmentAction.byId(buttonId);
+        if (treatment.isEmpty()) {
+            return false;
+        }
+
+        boolean success = applyTreatment(
+                examiner,
+                targetData.get(),
+                treatment.get()
+        );
+
         if (success) {
             examiner.sendSystemMessage(Component.translatable(
                     "message.medicalmod.treatment_success",
-                    Component.translatable(action.get().getTranslationKey()),
+                    Component.translatable(treatment.get().getTranslationKey()),
                     targetPlayer.getDisplayName()
             ));
         } else {
             examiner.sendSystemMessage(Component.translatable(
                     "message.medicalmod.treatment_failed",
-                    Component.translatable(action.get().getTranslationKey())
+                    Component.translatable(treatment.get().getTranslationKey())
             ));
         }
+
         return true;
     }
 
-    private boolean applyTreatment(Player examiner, IMedicalData data, TreatmentAction action) {
+    private void applyExamination(
+            Player examiner,
+            IMedicalData data,
+            ExaminationAction action
+    ) {
+        if (action.isBodySpecific()) {
+            data.markBodyPartExamined(selectedBodyPart);
+        } else {
+            data.markExamined(action);
+        }
+
+        examiner.sendSystemMessage(Component.translatable(
+                "message.medicalmod.examination_success",
+                Component.translatable(action.getTranslationKey()),
+                targetPlayer.getDisplayName()
+        ));
+    }
+
+    private boolean applyTreatment(
+            Player examiner,
+            IMedicalData data,
+            TreatmentAction action
+    ) {
         return switch (action) {
             case BANDAGE -> {
-                if (!data.isBleeding() || !consumeItem(examiner, ModItems.BANDAGE.get())) {
+                if (data.getBleedingLevel(selectedBodyPart) <= 0
+                        || !consumeItem(examiner, ModItems.BANDAGE.get())) {
                     yield false;
                 }
-                data.reduceBleeding(1);
+                data.reduceBleeding(selectedBodyPart, 1);
                 data.setPain(data.getPain() - 1);
+                data.markBodyPartExamined(selectedBodyPart);
                 yield true;
             }
             case TOURNIQUET -> {
-                if (!data.isBleeding() || !consumeItem(examiner, ModItems.TOURNIQUET.get())) {
+                if (!isLimb(selectedBodyPart)
+                        || data.getBleedingLevel(selectedBodyPart) <= 0
+                        || !consumeItem(examiner, ModItems.TOURNIQUET.get())) {
                     yield false;
                 }
-                data.stopBleeding();
+                data.stopBleeding(selectedBodyPart);
                 data.setPain(data.getPain() + 1);
+                data.markBodyPartExamined(selectedBodyPart);
                 yield true;
             }
             case SPLINT -> {
-                BodyPart fracturedPart = firstFracturedPart(data);
-                if (fracturedPart == null || !consumeItem(examiner, ModItems.SPLINT.get())) {
+                if (!data.hasFracture(selectedBodyPart)
+                        || !consumeItem(examiner, ModItems.SPLINT.get())) {
                     yield false;
                 }
-                data.setFracture(fracturedPart, false);
+                data.setFracture(selectedBodyPart, false);
                 data.setPain(data.getPain() - 2);
+                data.markBodyPartExamined(selectedBodyPart);
                 yield true;
             }
             case OXYGEN -> {
@@ -209,15 +285,21 @@ public final class MedicalMenu extends AbstractContainerMenu {
                     yield false;
                 }
                 data.setOxygenSaturation(data.getOxygenSaturation() + 12);
-                data.setRespiratoryRate(Math.max(12, data.getRespiratoryRate() - 2));
+                data.setRespiratoryRate(
+                        Math.max(12, data.getRespiratoryRate() - 2)
+                );
+                data.markExamined(ExaminationAction.SPO2);
+                data.markExamined(ExaminationAction.BREATHING);
                 yield true;
             }
             case MORPHINE -> {
-                if (!consumeItem(examiner, ModItems.MORPHINE.get())) {
+                if (data.getPain() <= 0
+                        || !consumeItem(examiner, ModItems.MORPHINE.get())) {
                     yield false;
                 }
                 data.setPain(data.getPain() - 4);
                 data.setRespiratoryRate(data.getRespiratoryRate() - 2);
+                data.markExamined(ExaminationAction.PAIN);
                 yield true;
             }
             case EPINEPHRINE -> {
@@ -225,18 +307,27 @@ public final class MedicalMenu extends AbstractContainerMenu {
                     yield false;
                 }
                 data.setPulse(data.getPulse() + 20);
-                data.setSystolicPressure(data.getSystolicPressure() + 15);
-                data.setConsciousnessLevel(data.getConsciousnessLevel() - 1);
+                data.setSystolicPressure(
+                        data.getSystolicPressure() + 15
+                );
+                data.setConsciousnessLevel(
+                        data.getConsciousnessLevel() - 1
+                );
                 yield true;
             }
             case IV_FLUIDS -> {
-                if (!consumeItem(examiner, ModItems.SALINE.get())) {
+                if (data.getBloodVolumeMl() >= 5000
+                        || !consumeItem(examiner, ModItems.SALINE.get())) {
                     yield false;
                 }
                 data.setIvAccess(true);
                 data.setBloodVolumeMl(data.getBloodVolumeMl() + 500);
-                data.setSystolicPressure(data.getSystolicPressure() + 10);
-                data.setDiastolicPressure(data.getDiastolicPressure() + 5);
+                data.setSystolicPressure(
+                        data.getSystolicPressure() + 10
+                );
+                data.setDiastolicPressure(
+                        data.getDiastolicPressure() + 5
+                );
                 yield true;
             }
             case CLEAR_AIRWAY -> {
@@ -244,60 +335,82 @@ public final class MedicalMenu extends AbstractContainerMenu {
                     yield false;
                 }
                 data.setAirwayStatus(0);
-                data.setOxygenSaturation(data.getOxygenSaturation() + 5);
+                data.setOxygenSaturation(
+                        data.getOxygenSaturation() + 5
+                );
+                data.markExamined(ExaminationAction.AIRWAY);
                 yield true;
             }
             case CHEST_SEAL -> {
-                if (!consumeItem(examiner, ModItems.CHEST_SEAL.get())) {
+                if (selectedBodyPart != BodyPart.TORSO
+                        || data.getInjurySeverity(BodyPart.TORSO) <= 0
+                        || !consumeItem(examiner, ModItems.CHEST_SEAL.get())) {
                     yield false;
                 }
-                data.reduceBleeding(1);
+                data.reduceBleeding(BodyPart.TORSO, 1);
                 data.setInjurySeverity(
                         BodyPart.TORSO,
-                        Math.max(0, data.getInjurySeverity(BodyPart.TORSO) - 1)
+                        Math.max(
+                                0,
+                                data.getInjurySeverity(BodyPart.TORSO) - 1
+                        )
                 );
+                data.markBodyPartExamined(BodyPart.TORSO);
                 yield true;
             }
             case NEEDLE_DECOMPRESSION -> {
-                if (!data.hasPneumothorax()
-                        || !consumeItem(examiner, ModItems.DECOMPRESSION_NEEDLE.get())) {
+                if (selectedBodyPart != BodyPart.TORSO
+                        || !data.hasPneumothorax()
+                        || !consumeItem(
+                                examiner,
+                                ModItems.DECOMPRESSION_NEEDLE.get()
+                        )) {
                     yield false;
                 }
                 data.setPneumothorax(false);
-                data.setOxygenSaturation(data.getOxygenSaturation() + 10);
-                data.setRespiratoryRate(Math.max(12, data.getRespiratoryRate() - 4));
+                data.setOxygenSaturation(
+                        data.getOxygenSaturation() + 10
+                );
+                data.setRespiratoryRate(
+                        Math.max(12, data.getRespiratoryRate() - 4)
+                );
+                data.markExamined(ExaminationAction.BREATHING);
                 yield true;
             }
             case CPR -> {
-                if (data.getPulse() > 0 && data.getCardiacRhythm() != 4) {
+                if (data.getPulse() > 0
+                        && data.getCardiacRhythm() != 4) {
                     yield false;
                 }
                 data.setPulse(35);
                 data.setCardiacRhythm(1);
                 data.setSystolicPressure(60);
+                data.markExamined(ExaminationAction.PULSE);
                 yield true;
             }
             case DEFIBRILLATION -> {
                 if (data.getCardiacRhythm() != 3
-                        || !hasItem(examiner, ModItems.DEFIBRILLATOR.get())) {
+                        || !hasItem(
+                                examiner,
+                                ModItems.DEFIBRILLATOR.get()
+                        )) {
                     yield false;
                 }
                 data.setCardiacRhythm(0);
                 data.setPulse(80);
                 data.setSystolicPressure(110);
                 data.setDiastolicPressure(70);
+                data.markExamined(ExaminationAction.PULSE);
                 yield true;
             }
         };
     }
 
-    private static BodyPart firstFracturedPart(IMedicalData data) {
-        for (BodyPart bodyPart : BodyPart.values()) {
-            if (data.hasFracture(bodyPart)) {
-                return bodyPart;
-            }
-        }
-        return null;
+    private static boolean isLimb(BodyPart bodyPart) {
+        return bodyPart == BodyPart.LEFT_ARM
+                || bodyPart == BodyPart.RIGHT_ARM
+                || bodyPart == BodyPart.LEFT_LEG
+                || bodyPart == BodyPart.RIGHT_LEG;
     }
 
     private static boolean consumeItem(Player player, Item item) {
@@ -333,7 +446,8 @@ public final class MedicalMenu extends AbstractContainerMenu {
 
     @Override
     public boolean stillValid(Player player) {
-        return targetPlayer.isAlive() && player.distanceToSqr(targetPlayer) <= 64.0D;
+        return targetPlayer.isAlive()
+                && player.distanceToSqr(targetPlayer) <= 64.0D;
     }
 
     @Override
@@ -345,8 +459,16 @@ public final class MedicalMenu extends AbstractContainerMenu {
         return targetPlayer.getDisplayName();
     }
 
-    public int getBleedingLevel() {
-        return medicalData.get(BLEEDING_INDEX);
+    public void selectBodyPartLocally(BodyPart bodyPart) {
+        selectedBodyPart = bodyPart;
+    }
+
+    public BodyPart getSelectedBodyPart() {
+        return selectedBodyPart;
+    }
+
+    public static int getBodyPartButtonId(BodyPart bodyPart) {
+        return BODY_PART_BUTTON_BASE + bodyPart.ordinal();
     }
 
     public int getPain() {
@@ -402,10 +524,34 @@ public final class MedicalMenu extends AbstractContainerMenu {
     }
 
     public boolean hasFracture(BodyPart bodyPart) {
-        return (medicalData.get(FRACTURE_MASK_INDEX) & (1 << bodyPart.ordinal())) != 0;
+        return (medicalData.get(FRACTURE_MASK_INDEX)
+                & (1 << bodyPart.ordinal())) != 0;
     }
 
     public int getInjurySeverity(BodyPart bodyPart) {
         return medicalData.get(INJURY_START_INDEX + bodyPart.ordinal());
+    }
+
+    public int getBleedingLevel(BodyPart bodyPart) {
+        return medicalData.get(BLEEDING_START_INDEX + bodyPart.ordinal());
+    }
+
+    public int getMaximumBleedingLevel() {
+        int maximum = 0;
+        for (BodyPart bodyPart : BodyPart.values()) {
+            maximum = Math.max(maximum, getBleedingLevel(bodyPart));
+        }
+        return maximum;
+    }
+
+    public boolean isExamined(ExaminationAction action) {
+        return !action.isBodySpecific()
+                && (medicalData.get(EXAMINATION_MASK_INDEX)
+                & action.getMask()) != 0;
+    }
+
+    public boolean isBodyPartExamined(BodyPart bodyPart) {
+        return (medicalData.get(BODY_EXAMINATION_MASK_INDEX)
+                & (1 << bodyPart.ordinal())) != 0;
     }
 }
