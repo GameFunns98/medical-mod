@@ -1,0 +1,1 @@
+Run diagnostics-enabled Forge build for the current medical GUI.
